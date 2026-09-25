@@ -1,12 +1,12 @@
 # api/low.py
-import json, time
+from ..primitives.clock import now_ts
 
 
 def _base(cid, model, delta, finish):
     return {
         "id": cid,
         "object": "chat.completion.chunk",
-        "created": int(time.time()),
+        "created": now_ts(),
         "model": model,
         "choices": [{"index": 0, "delta": delta, "finish_reason": finish}],
     }

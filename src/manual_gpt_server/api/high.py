@@ -2,15 +2,20 @@
 from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse, JSONResponse
 from . import mid
+from manual_gpt_server.lib.transport import Transport
 
-def build_router(source, model_id: str) -> APIRouter:
+
+def build_router(source: Transport, model_id: str) -> APIRouter:
     router = APIRouter()
 
     @router.get("/v1/models")
     async def models():
-        return {"object": "list",
-                "data": [{"id": model_id, "object": "model",
-                          "created": 0, "owned_by": "human"}]}
+        return {
+            "object": "list",
+            "data": [
+                {"id": model_id, "object": "model", "created": 0, "owned_by": "human"}
+            ],
+        }
 
     @router.post("/v1/chat/completions")
     async def chat(request: Request):

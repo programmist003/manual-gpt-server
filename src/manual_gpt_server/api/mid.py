@@ -3,6 +3,7 @@ from typing import Protocol, AsyncIterator
 from . import low
 from ..primitives.sse import sse_frame, SSE_DONE
 from ..primitives.ids import new_completion_id
+from ..primitives.clock import now_ts
 
 
 class AnswerSource(Protocol):
@@ -30,7 +31,7 @@ async def full_completion(source, messages, model) -> dict:
     return {
         "id": cid,
         "object": "chat.completion",
-        "created": int(__import__("time").time()),
+        "created": int(now_ts()),
         "model": model,
         "choices": [
             {
