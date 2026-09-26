@@ -1,10 +1,6 @@
-# web/app.py
-from __future__ import annotations
-
-import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-
-from manual_gpt_server.api.high import build_router
+import uvicorn
+from manual_gpt_server.server import build_app
 from manual_gpt_server.lib.queue import QueueTransport
 from manual_gpt_server.lib.config import Settings
 
@@ -12,8 +8,7 @@ from manual_gpt_server.lib.config import Settings
 def make_app() -> FastAPI:
     settings = Settings()
     transport = QueueTransport()
-    app = FastAPI()
-    app.include_router(build_router(transport, model_id=settings.model_id))
+    app = build_app(transport, model_id=settings.model_id)
 
     @app.websocket("/admin")
     async def admin(ws: WebSocket) -> None:

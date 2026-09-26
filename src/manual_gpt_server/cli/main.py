@@ -1,16 +1,15 @@
-# cli/main.py
-import uvicorn
 from fastapi import FastAPI
-from ..api.high import build_router
-from ..lib.terminal import TerminalTransport
+from manual_gpt_server.server import build_app
+from manual_gpt_server.lib.terminal import TerminalTransport
+from manual_gpt_server.lib.config import Settings
 
 
-def make_app():
-    transport = TerminalTransport()
-    app = FastAPI()
-    app.include_router(build_router(transport, model_id="manual"))
-    return app
+def make_app() -> FastAPI:
+    settings = Settings()
+    return build_app(TerminalTransport(), model_id=settings.model_id)
 
 
-def main():
-    uvicorn.run(make_app(), host="127.0.0.1", port=8000)
+def main() -> None:
+    settings = Settings()
+    import uvicorn
+    uvicorn.run(make_app(), host=settings.host, port=settings.port)

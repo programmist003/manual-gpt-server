@@ -8,3 +8,7 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Debug
+dump_state.bat
+state_dump.txt

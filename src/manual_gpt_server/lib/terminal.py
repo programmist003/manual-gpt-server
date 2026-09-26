@@ -1,5 +1,4 @@
 # lib/terminal.py
-import asyncio
 from starlette.concurrency import run_in_threadpool
 
 
