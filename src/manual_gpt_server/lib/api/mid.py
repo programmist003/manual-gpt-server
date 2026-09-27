@@ -1,13 +1,13 @@
-# api/mid.py
+# lib/api/mid.py
 from __future__ import annotations
 
 from typing import AsyncIterator
 
-from manual_gpt_server.api import low
+from manual_gpt_server.lib.api import low
 from manual_gpt_server.lib.transport import Transport
-from manual_gpt_server.primitives.clock import now_ts
-from manual_gpt_server.primitives.ids import new_completion_id
-from manual_gpt_server.primitives.sse import SSE_DONE, sse_frame
+from manual_gpt_server.lib.primitives.clock import now_ts
+from manual_gpt_server.lib.primitives.ids import new_completion_id
+from manual_gpt_server.lib.primitives.sse import SSE_DONE, sse_frame
 
 
 async def stream_completion(

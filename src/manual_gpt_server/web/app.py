@@ -8,8 +8,8 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from manual_gpt_server.lib.config import Settings
-from manual_gpt_server.lib.queue import QueueTransport
 from manual_gpt_server.rest.server import build_rest_app
+from manual_gpt_server.web.queue import QueueTransport
 
 STATIC_DIR = Path(__file__).parent / "static"
 
@@ -56,11 +56,13 @@ def make_app() -> FastAPI:
 
 def main() -> None:
     settings = Settings()
-    app = make_app()
-    print("[DEBUG] make_app returned:", type(app).__name__, flush=True)
-    if app is None:
-        raise RuntimeError("make_app returned None")
-    config = uvicorn.Config(app, host=settings.host, port=settings.port, interface="asgi3", log_level="info")
+    config = uvicorn.Config(
+        make_app(),
+        host=settings.host,
+        port=settings.port,
+        interface="asgi3",
+        log_level="info",
+    )
     uvicorn.Server(config).run()
 
 

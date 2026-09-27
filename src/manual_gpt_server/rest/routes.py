@@ -1,10 +1,9 @@
-# rest/routes.py
 from __future__ import annotations
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
-from manual_gpt_server.api import mid
+from manual_gpt_server.lib.api import mid
 from manual_gpt_server.lib.transport import Transport
 
 

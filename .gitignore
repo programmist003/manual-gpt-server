@@ -12,5 +12,7 @@ wheels/
 # Debug
 dev-scripts/
 dump_state.bat
+dump_tree.bat
+dump_full.bat
 state_dump.txt
 *.bak
