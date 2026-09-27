@@ -29,3 +29,8 @@ web = [
 [build-system]
 build-backend = "uv_build"
 requires = ["uv_build>=0.12.17,<0.13.0"]
+
+[dependency-groups]
+dev = [
+    "import-linter>=2.5.2",
+]

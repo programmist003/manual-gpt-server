@@ -1,0 +1,49 @@
+[importlinter]
+root_package = manual_gpt_server
+include_external_packages = True
+
+# ---- R5: строгая слоистость ---------------------------------
+[importlinter:contract:layers]
+name = Layered architecture (R5)
+type = layers
+layers =
+    manual_gpt_server.cli | manual_gpt_server.web
+    manual_gpt_server.rest
+    manual_gpt_server.lib
+
+# ---- R1: lib не тянет веб-фреймворки ------------------------
+[importlinter:contract:lib-purity]
+name = lib stays framework-free (R1)
+type = forbidden
+source_modules =
+    manual_gpt_server.lib
+forbidden_modules =
+    fastapi
+    starlette
+    httpx
+    uvicorn
+    websockets
+
+# ---- R3: web не лезет в lib НАПРЯМУЮ -----------------------
+[importlinter:contract:web-via-rest]
+name = web only touches rest (R3)
+type = forbidden
+source_modules =
+    manual_gpt_server.web
+forbidden_modules =
+    manual_gpt_server.lib.api
+    manual_gpt_server.lib.primitives
+    manual_gpt_server.lib.transport
+allow_indirect_imports = True
+
+# ---- R2: cli не лезет в lib НАПРЯМУЮ -----------------------
+[importlinter:contract:cli-via-rest]
+name = cli only touches rest (R2)
+type = forbidden
+source_modules =
+    manual_gpt_server.cli
+forbidden_modules =
+    manual_gpt_server.lib.api
+    manual_gpt_server.lib.primitives
+    manual_gpt_server.lib.transport
+allow_indirect_imports = True
