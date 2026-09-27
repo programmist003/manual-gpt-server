@@ -1,4 +1,3 @@
-# lib/queue.py
 from __future__ import annotations
 
 import asyncio
@@ -9,7 +8,16 @@ class QueueTransport:
     """Веб-транспорт: запрос уходит админке через очередь, ответ приходит чанками."""
 
     def __init__(self) -> None:
-        self.pending: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+        self._pending: asyncio.Queue[dict[str, Any]] | None = None
+
+    @property
+    def pending(self) -> asyncio.Queue[dict[str, Any]]:
+        # Ленивая инициализация: очередь должна создаваться
+        # внутри работающего event loop, иначе её future'ы
+        # привяжутся к чужому циклу (RuntimeError: different loop).
+        if self._pending is None:
+            self._pending = asyncio.Queue()
+        return self._pending
 
     async def stream(self, messages: list[dict]) -> AsyncIterator[str]:
         out: asyncio.Queue[str | None] = asyncio.Queue()

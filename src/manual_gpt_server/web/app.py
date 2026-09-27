@@ -28,13 +28,12 @@ def make_app() -> FastAPI:
     @app.websocket("/admin")
     async def admin(ws: WebSocket) -> None:
         await ws.accept()
-        current: dict | None = None
+        current = None
         try:
             while True:
                 req = await transport.next_request()
                 current = req
                 await ws.send_json({"type": "request", "messages": req["messages"]})
-
                 while True:
                     msg = await ws.receive_json()
                     kind = msg.get("type")
@@ -45,20 +44,24 @@ def make_app() -> FastAPI:
                         current = None
                         break
         except WebSocketDisconnect:
-            # 1) текущий запрос — закрыть стрим
             if current is not None:
                 await current["out"].put(None)
-            # 2) все, что успели накопиться в очереди — тоже закрыть,
-            #    иначе клиенты /v1/chat/completions будут висеть вечно
             while not transport.pending.empty():
                 pending = transport.pending.get_nowait()
                 await pending["out"].put(None)
             return
 
+    return app
+
 
 def main() -> None:
     settings = Settings()
-    uvicorn.run(make_app(), host=settings.host, port=settings.port)
+    app = make_app()
+    print("[DEBUG] make_app returned:", type(app).__name__, flush=True)
+    if app is None:
+        raise RuntimeError("make_app returned None")
+    config = uvicorn.Config(app, host=settings.host, port=settings.port, interface="asgi3", log_level="info")
+    uvicorn.Server(config).run()
 
 
 if __name__ == "__main__":

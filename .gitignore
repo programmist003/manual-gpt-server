@@ -10,5 +10,7 @@ wheels/
 .venv
 
 # Debug
+dev-scripts/
 dump_state.bat
 state_dump.txt
+*.bak
