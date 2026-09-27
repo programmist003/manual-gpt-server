@@ -18,6 +18,9 @@ manual-gpt-server = "manual_gpt_server:main"
 manual-gpt-server-web = "manual_gpt_server.web.app:main"
 
 [project.optional-dependencies]
+client = [
+  "httpx>=0.27",
+]
 web = [
   "jinja2>=3.1",
 ]

@@ -1,37 +1,36 @@
 # api/mid.py
-from typing import Protocol, AsyncIterator
-from . import low
-from ..primitives.sse import sse_frame, SSE_DONE
-from ..primitives.ids import new_completion_id
-from ..primitives.clock import now_ts
+from __future__ import annotations
+
+from typing import AsyncIterator
+
+from manual_gpt_server.api import low
+from manual_gpt_server.lib.transport import Transport
+from manual_gpt_server.primitives.clock import now_ts
+from manual_gpt_server.primitives.ids import new_completion_id
+from manual_gpt_server.primitives.sse import SSE_DONE, sse_frame
 
 
-class AnswerSource(Protocol):
-    async def ask(self, messages: list[dict]) -> str: ...
-
-
-def _split_words(text: str) -> list[str]:
-    words = text.split(" ")
-    return [w if i == 0 else " " + w for i, w in enumerate(words)]
-
-
-async def stream_completion(source, messages, model) -> AsyncIterator[bytes]:
+async def stream_completion(
+    source: Transport, messages: list[dict], model: str
+) -> AsyncIterator[bytes]:
     cid = new_completion_id()
-    answer = await source.ask(messages)
     yield sse_frame(low.dumps(low.role_chunk(cid, model)))
-    for piece in _split_words(answer):
+    async for piece in source.stream(messages):
         yield sse_frame(low.dumps(low.content_chunk(cid, model, piece)))
     yield sse_frame(low.dumps(low.stop_chunk(cid, model)))
     yield SSE_DONE
 
 
-async def full_completion(source, messages, model) -> dict:
+async def full_completion(source: Transport, messages: list[dict], model: str) -> dict:
     cid = new_completion_id()
-    answer = await source.ask(messages)
+    parts: list[str] = []
+    async for piece in source.stream(messages):
+        parts.append(piece)
+    answer = "".join(parts)
     return {
         "id": cid,
         "object": "chat.completion",
-        "created": int(now_ts()),
+        "created": now_ts(),
         "model": model,
         "choices": [
             {
