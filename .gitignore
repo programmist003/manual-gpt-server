@@ -10,9 +10,6 @@ wheels/
 .venv
 
 # Debug
-dev-scripts/
-dump_state.bat
-dump_tree.bat
-dump_full.bat
+scripts/ai-commits/*.bat
 state_dump.txt
 *.bak
