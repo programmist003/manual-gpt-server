@@ -32,5 +32,8 @@ requires = ["uv_build>=0.12.17,<0.13.0"]
 
 [dependency-groups]
 dev = [
+    "httpx>=0.28.1",
     "import-linter>=2.5.2",
+    "pytest>=8.4.2",
+    "pytest-asyncio>=1.2.0",
 ]
