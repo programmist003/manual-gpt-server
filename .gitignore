@@ -12,4 +12,5 @@ wheels/
 # Debug
 scripts/ai-commits/*.bat
 state_dump.txt
+state_tree.txt
 *.bak
