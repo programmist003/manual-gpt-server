@@ -1,29 +1,31 @@
-# api/low.py
+# lib/api/low.py
+from __future__ import annotations
+
 import json
-from ..primitives.clock import now_ts
+from typing import Optional
 
 
-def _base(cid, model, delta, finish):
+def _base(cid: str, model: str, created: int, delta: dict, finish: Optional[str]) -> dict:
     return {
         "id": cid,
         "object": "chat.completion.chunk",
-        "created": now_ts(),
+        "created": created,
         "model": model,
         "choices": [{"index": 0, "delta": delta, "finish_reason": finish}],
     }
 
 
-def role_chunk(cid, model):
-    return _base(cid, model, {"role": "assistant"}, None)
+def role_chunk(cid: str, model: str, created: int) -> dict:
+    return _base(cid, model, created, {"role": "assistant"}, None)
 
 
-def content_chunk(cid, model, text):
-    return _base(cid, model, {"content": text}, None)
+def content_chunk(cid: str, model: str, text: str, created: int) -> dict:
+    return _base(cid, model, created, {"content": text}, None)
 
 
-def stop_chunk(cid, model):
-    return _base(cid, model, {}, "stop")
+def stop_chunk(cid: str, model: str, created: int) -> dict:
+    return _base(cid, model, created, {}, "stop")
 
 
-def dumps(chunk) -> str:
+def dumps(chunk: dict) -> str:
     return json.dumps(chunk, ensure_ascii=False)

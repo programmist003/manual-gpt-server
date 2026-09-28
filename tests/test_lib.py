@@ -7,28 +7,30 @@ from manual_gpt_server.lib.primitives.sse import SSE_DONE, sse_frame
 
 
 def test_low_role_chunk():
-    c = low.role_chunk("id1", "m1")
+    c = low.role_chunk("id1", "m1", 1000)
     assert c["object"] == "chat.completion.chunk"
+    assert c["created"] == 1000
     assert c["model"] == "m1"
     assert c["choices"][0]["delta"] == {"role": "assistant"}
     assert c["choices"][0]["finish_reason"] is None
 
 
 def test_low_content_chunk():
-    c = low.content_chunk("id1", "m1", "hi")
+    c = low.content_chunk("id1", "m1", "hi", 1000)
+    assert c["created"] == 1000
     assert c["choices"][0]["delta"] == {"content": "hi"}
 
 
 def test_low_stop_chunk():
-    c = low.stop_chunk("id1", "m1")
+    c = low.stop_chunk("id1", "m1", 1000)
+    assert c["created"] == 1000
     assert c["choices"][0]["delta"] == {}
     assert c["choices"][0]["finish_reason"] == "stop"
 
 
 def test_low_dumps_keeps_unicode():
-    c = low.content_chunk("i", "m", "privet")
-    s = low.dumps(c)
-    assert "privet" in s
+    c = low.content_chunk("i", "m", "privet", 1000)
+    assert "privet" in low.dumps(c)
 
 
 # ---- sse ----
@@ -59,6 +61,18 @@ async def test_mid_stream_sequence(fake_transport):
     assert b"world" in out[3]
     assert b"stop" in out[4]
     assert out[5] == SSE_DONE
+
+
+async def test_mid_stream_created_is_fixed(fake_transport):
+    """Все чанки одного ответа должны иметь одинаковый created."""
+    import json
+    created_values = []
+    async for b in stream_completion(fake_transport, [], "test"):
+        if b == SSE_DONE:
+            continue
+        payload = b.decode() .split("data: ", 1)[1].strip()
+        created_values.append(json.loads(payload)["created"])
+    assert len(set(created_values)) == 1
 
 
 async def test_mid_full_completion(fake_transport):
