@@ -40,7 +40,7 @@ class TerminalTransport:
 
         first_chunk = True
         while True:
-            line = await run_in_threadpool(input, "assistant^> ")
+            line = await run_in_threadpool(input, "assistant> ")
             if not line:
                 return
 

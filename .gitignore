@@ -14,3 +14,6 @@ scripts/ai-commits/*.bat
 state_dump.txt
 state_tree.txt
 *.bak
+
+# Other
+.import_linter_cache/
