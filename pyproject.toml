@@ -16,7 +16,7 @@ version = "0.1.0"
 
 [project.scripts]
 manual-gpt-server = "manual_gpt_server:main"
-manual-gpt-server-web = "manual_gpt_server.web.app:main"
+manual-gpt-server-serve = "manual_gpt_server.server:main"
 
 [project.optional-dependencies]
 client = [

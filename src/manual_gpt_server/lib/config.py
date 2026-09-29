@@ -9,5 +9,6 @@ class Settings:
     def __init__(self) -> None:
         self.host: str = os.environ.get("MANUAL_GPT_HOST", "127.0.0.1")
         self.port: int = int(os.environ.get("MANUAL_GPT_PORT", "8000"))
+        self.control_port: int = int(os.environ.get("MANUAL_GPT_CONTROL_PORT", "8001"))
         self.model_id: str = os.environ.get("MANUAL_GPT_MODEL_ID", "manual")
         self.api_key: Optional[str] = os.environ.get("MANUAL_GPT_API_KEY")
