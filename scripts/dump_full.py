@@ -44,7 +44,7 @@ def main(argv: list[str]) -> int:
             lines.append(f"----- {f.relative_to(root)} -----")
             lines.append(f.read_text(encoding="utf-8"))
             lines.append("")
-
+    pyproject = root / "pyproject.toml"
     lines.append("")
     if pyproject.exists():
         lines.append(pyproject.read_text(encoding="utf-8"))
