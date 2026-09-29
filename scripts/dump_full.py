@@ -46,8 +46,6 @@ def main(argv: list[str]) -> int:
             lines.append("")
 
     lines.append("")
-    lines.append("=== pyproject.toml ===")
-    pyproject = root / "pyproject.toml"
     if pyproject.exists():
         lines.append(pyproject.read_text(encoding="utf-8"))
     else:

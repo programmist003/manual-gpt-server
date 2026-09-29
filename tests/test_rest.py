@@ -10,23 +10,59 @@ def test_models(client):
 
 
 def test_chat_full(client):
-    r = client.post("/v1/chat/completions", json={
-        "model": "test",
-        "messages": [{"role": "user", "content": "hi"}],
-    })
+    r = client.post(
+        "/v1/chat/completions",
+        json={
+            "model": "test",
+            "messages": [{"role": "user", "content": "hi"}],
+        },
+    )
     assert r.status_code == 200
     d = r.json()
     assert d["choices"][0]["message"]["content"] == "hello world"
 
 
 def test_chat_stream(client):
-    r = client.post("/v1/chat/completions", json={
-        "model": "test",
-        "messages": [{"role": "user", "content": "hi"}],
-        "stream": True,
-    })
+    r = client.post(
+        "/v1/chat/completions",
+        json={
+            "model": "test",
+            "messages": [{"role": "user", "content": "hi"}],
+            "stream": True,
+        },
+    )
     assert r.status_code == 200
     assert "text/event-stream" in r.headers["content-type"]
     text = r.text
     assert "data: [DONE]" in text
     assert "hello" in text
+
+
+def test_completions_full(client):
+    r = client.post(
+        "/v1/completions",
+        json={
+            "model": "test",
+            "prompt": "say hi",
+        },
+    )
+    assert r.status_code == 200
+    d = r.json()
+    assert d["object"] == "text_completion"
+    assert d["choices"][0]["text"] == "hello world"
+
+
+def test_completions_stream(client):
+    r = client.post(
+        "/v1/completions",
+        json={
+            "model": "test",
+            "prompt": "say hi",
+            "stream": True,
+        },
+    )
+    assert r.status_code == 200
+    assert "text/event-stream" in r.headers["content-type"]
+    text = r.text
+    assert "data: [DONE]" in text
+    assert '"text_completion"' in text
