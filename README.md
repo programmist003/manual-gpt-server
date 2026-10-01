@@ -22,7 +22,7 @@ OpenAI-совместимый HTTP-сервер, в котором роль «м
 Нужен [uv](https://docs.astral.sh/uv/). Больше ничего.
 
 ```cmd
-git clone <repo-url>
+git clone https://github.com/programmist003/manual-gpt-server
 cd manual-gpt-server
 uv sync
 ```
