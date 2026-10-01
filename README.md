@@ -166,4 +166,4 @@ uv run scripts/dump_full.py tests scripts
 
 ## Лицензия
 
-См. `LICENSE` в корне проекта.
+[MIT](LICENSE)

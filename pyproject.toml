@@ -13,6 +13,8 @@ name = "manual-gpt-server"
 readme = "README.md"
 requires-python = ">=3.9"
 version = "0.1.0"
+license = "MIT"
+license-files = ["LICENSE"]
 
 [project.scripts]
 manual-gpt-server = "manual_gpt_server:main"
