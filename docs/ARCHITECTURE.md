@@ -3,10 +3,10 @@
 ## Что это
 
 `manual-gpt-server` — OpenAI-совместимый HTTP-сервер, в котором роль
-«модели» играет человек. Клиент (openai-python, langchain, chat-ui)
-думает, что говорит с LLM. На самом деле запрос уходит оператору —
-в терминал или в веб-админку, — оператор печатает ответ, и он
-возвращается клиенту в формате `chat.completion` / SSE-стрима.
+«модели» играет человек. Клиент (openai-python, langchain, chat-ui,
+Continue) думает, что говорит с LLM. На самом деле запрос уходит
+оператору — в терминал или в веб-админку, — оператор печатает ответ,
+и он возвращается клиенту в формате `chat.completion` / SSE-стрима.
 
 Применения: отладка LLM-клиентов без токенов, тесты, демонстрации,
 заготовка под «человека в цикле» в пайплайнах.
@@ -22,28 +22,38 @@
 `lib` — это ядро проекта. Он не знает, кто его использует: CLI,
 веб, тесты или сторонний код. Следствия:
 
-- В `lib` **нет** `print`, `input`, UI-очередей, WebSocket,
-  ничего из FastAPI-роутов.
+- В `lib` **нет** `print`, `input`, UI-очередей на внешние каналы,
+  WebSocket, ничего из FastAPI-роутов.
 - В `lib` **нет** зависимости от конкретного фронта
   (терминал, веб, telegram, что угодно).
 - `lib` можно скопировать в другой проект и импортировать без
   доработок. Он должен остаться работоспособным, даже если
-  `cli/`, `rest/`, `web/` удалить целиком.
+  `cli/`, `rest/`, `control/`, `server/` удалить целиком.
 
-### R2. `cli` и `rest` — равноправные клиенты `lib`
+Исключение — `lib/runtime.py` (`RuntimeState`). Он использует
+`asyncio.Queue` как in-memory очередь и остаётся framework-free:
+никаких `fastapi`, `starlette`, `websockets`. Это чистый
+`asyncio` + `time` + `uuid`.
+
+### R2. `cli` и `control` — равноправные потребители `rest`
 
 Ни один из них не «выше» другого. Оба сидят на одном уровне, оба
-смотрят вниз, в `lib`. Не существует ситуации, когда `cli`
-импортирует `rest` или `rest` импортирует `cli`.
+собирают `build_rest_app` из `rest/server.py`. Не существует
+ситуации, когда `cli` импортирует `control` или наоборот.
 
-### R3. `web` — над `rest`
+### R3. `control` — над `rest`
 
-`web` — это UI поверх REST-слоя. Он не обращается к `lib` напрямую
-через API-модули. Он собирает `rest`-приложение и навешивает сверху
-админку и статику.
+`control` — это UI поверх REST-слоя. Он не обращается к внутренностям
+`lib` (`lib.api`, `lib.primitives`, `lib.transport`) напрямую. Он
+собирает `rest`-приложение и навешивает сверху WebSocket и статику.
 
-Исключение — конфиг (`lib.config.Settings`), потому что это
-разделяемая настройка всех entry point'ов, а не логика.
+Исключения:
+
+- `lib.config.Settings` — разделяемая настройка entry point'ов.
+- `lib.runtime.RuntimeState` — общий стейт процесса; используется
+  и как `Transport` для `rest`, и как источник данных для control
+  REST-ручек (`/status`, `/history`). Это не «внутренность ядра»,
+  а сервис уровня приложения.
 
 ### R4. `rest` — и сервер, и клиент
 
@@ -56,13 +66,21 @@
 Зависимости идут только сверху вниз:
 
 ```
-cli    ─┐
-        ├──▶ rest ──▶ lib ──▶ stdlib
-web ────┘
+server
+  │
+cli │ control
+  │
+rest
+  │
+lib
+  │
+stdlib
 ```
 
-Никаких обратных стрелок. `lib` не может импортировать
-`rest`/`cli`/`web`. `rest` не может импортировать `cli`/`web`.
+`server` — композиционный корень верхнего уровня: собирает и
+запускает `cli`/`control`/`rest`. Никаких обратных стрелок. `lib`
+не может импортировать `rest`/`cli`/`control`/`server`. `rest` не
+может импортировать `cli`/`control`/`server`.
 
 Проверяется автоматически контрактом `.importlinter`
 (см. «Проверка инвариантов»).
@@ -71,7 +89,7 @@ web ────┘
 
 Любая автоматизация (дампы, миграции, подготовка окружения)
 живёт в `scripts/` и пишется на Python. Никаких `.bat`, `.sh`,
-`.ps1` — только `.py`, запускаемые через `uv run python`.
+`.ps1` — только `.py`, запускаемые через `uv run`.
 
 Причины:
 
@@ -80,20 +98,20 @@ web ────┘
 - Читаемость: нет `^`, `>>`, `!VAR!`, `%~dp0`.
 - Тестируемость: модули `scripts/` можно импортировать в pytest.
 
-Bootstrap решается сам собой: `uv run python scripts/foo.py`
-собирает venv, если его нет, и потом выполняет скрипт.
+Bootstrap решается сам собой: `uv run scripts/foo.py` собирает venv,
+если его нет, и потом выполняет скрипт.
 
 ### R7. Дампы разделены по назначению
 
-- `scripts/dump_tree.py` — структура + `pyproject.toml` + git.
-  Для «что изменилось». Размер — единицы килобайт.
-- `scripts/dump_full.py <layer>` — исходники одного слоя
-  (`lib`, `cli`, `rest`, `web`) или всего `src/`. Для «покажи мне
-  этот слой».
+- `scripts/dump_tree.py` — структура с размерами файлов + все
+  конфиги проекта целиком + git status. Для «что изменилось».
+- `scripts/dump_full.py [path...]` — исходники по списку путей
+  (файлы и папки вперемешку). Без аргументов — разумный набор
+  по умолчанию (`src`, `tests`, `scripts`, `docs`, конфиги).
 
 Оба пишут в `scripts/`, не в корень проекта. Оба игнорируют
-`.venv`, `.git`, `__pycache__`, `dist`, `build`, `*.pyc`, `*.bak`,
-`state_*.txt`.
+`.venv`, `.git`, `__pycache__`, `.import_linter_cache`, `dist`,
+`build`, `state_*.txt`.
 
 Полный дамп всего проекта не нужен: он линейно разрастается и
 перестаёт быть читаемым.
@@ -118,9 +136,9 @@ manual-gpt-server/
 │   └── ARCHITECTURE.md       этот файл
 │
 ├── scripts/                  служебные скрипты (R6, R7)
-│   ├── _common.py            find_project_root, iter_files
-│   ├── dump_tree.py          дерево + pyproject + git
-│   └── dump_full.py          исходники одного слоя
+│   ├── _common.py            find_project_root, iter_all, is_text
+│   ├── dump_tree.py          дерево + конфиги + git
+│   └── dump_full.py          исходники по путям
 │
 ├── src/manual_gpt_server/    основной пакет
 │   ├── __init__.py           entry point `manual-gpt-server`
@@ -129,37 +147,49 @@ manual-gpt-server/
 │   │   ├── __init__.py
 │   │   ├── config.py         Settings (env)
 │   │   ├── transport.py      Protocol Transport — контракт
+│   │   ├── runtime.py        RuntimeState — in-memory очередь
 │   │   ├── api/
+│   │   │   ├── __init__.py
 │   │   │   ├── low.py        сборка чанков OpenAI-формата
 │   │   │   └── mid.py        оркестрация SSE-стрима
 │   │   └── primitives/
+│   │       ├── __init__.py
 │   │       ├── clock.py      now_ts()
 │   │       ├── ids.py        new_completion_id()
 │   │       └── sse.py        sse_frame(), SSE_DONE
 │   │
-│   ├── cli/                  ТЕРМИНАЛЬНЫЙ ФРОНТ (R2)
+│   ├── cli/                  ТЕРМИНАЛЬНЫЙ ОПЕРАТОР (R2)
+│   │   ├── __init__.py
 │   │   ├── main.py           entry point `manual-gpt-server`
 │   │   └── terminal.py       TerminalTransport
 │   │
 │   ├── rest/                 HTTP-СЛОЙ (R2, R4)
 │   │   ├── __init__.py       реэкспорт build_rest_app
 │   │   ├── server.py         build_rest_app(transport, model_id)
-│   │   ├── routes.py         /v1/models, /v1/chat/completions
+│   │   ├── routes.py         /v1/models, /v1/chat/completions,
+│   │   │                     /v1/completions
 │   │   └── client.py         RestClient (httpx)
 │   │
-│   └── web/                  ВЕБ-АДМИНКА (R3)
-│       ├── app.py            entry point `manual-gpt-server-web`
-│       ├── queue.py          QueueTransport
-│       └── static/
-│           ├── admin.html
-│           └── admin.js
+│   ├── control/              ВЕБ-АДМИНКА (R3)
+│   │   ├── __init__.py       реэкспорт build_control_app
+│   │   ├── app.py            сборка FastAPI-приложения control
+│   │   ├── admin.py          WS-хендлер /admin
+│   │   ├── routes.py         REST /status, /history
+│   │   └── static/
+│   │       ├── admin.html
+│   │       └── admin.js
+│   │
+│   └── server/               КОМПОЗИЦИОННЫЙ КОРЕНЬ (R5)
+│       ├── __init__.py
+│       └── main.py           entry point `manual-gpt-server-serve`
+│                             поднимает API + control одновременно
 │
 └── tests/                    тесты (pytest)
     ├── conftest.py           FakeTransport, фикстуры app/client
     ├── test_lib.py           формат чанков, SSE, mid
-    ├── test_rest.py          HTTP-контракт
-    ├── test_queue.py         QueueTransport
-    └── test_web_admin.py     smoke-тест /admin WS
+    ├── test_rest.py          HTTP-контракт (chat + legacy)
+    ├── test_queue.py         RuntimeState (stream, status, history)
+    └── test_web_admin.py     smoke-тесты control (/admin, /status)
 ```
 
 ## Слои
@@ -172,6 +202,7 @@ manual-gpt-server/
 - Формат OpenAI (`low`, `mid`)
 - Настройки из env
 - Утилиты (время, id, SSE-фреймы)
+- In-memory очередь запросов (`RuntimeState`)
 
 Не отвечает ни за:
 
@@ -187,12 +218,12 @@ class Transport(Protocol):
 ```
 
 Любой объект с методом `stream()` может быть транспортом. `lib`
-не проверяет, кто это — `TerminalTransport`, `QueueTransport` или
+не проверяет, кто это — `TerminalTransport`, `RuntimeState` или
 тестовый `FakeTransport`.
 
-### cli — терминальный фронт
+### cli — терминальный оператор
 
-Собирает `lib`-ядро с `TerminalTransport`. Отвечает за:
+Собирает `rest`-приложение с `TerminalTransport`. Отвечает за:
 
 - Чтение ответа оператора через `input()`
 - Резку строки на слова и отдачу их пословно (живой стрим)
@@ -207,7 +238,7 @@ class Transport(Protocol):
 
 Отвечает за:
 
-- HTTP-роуты `/v1/models`, `/v1/chat/completions`
+- HTTP-роуты `/v1/models`, `/v1/chat/completions`, `/v1/completions`
 - Сборку FastAPI-приложения из транспорта
 - HTTP-клиент к тому же API (`client.py`)
 
@@ -216,22 +247,36 @@ class Transport(Protocol):
 - Источник ответа (это `Transport`)
 - UI поверх HTTP
 
-### web — веб-админка
+### control — веб-админка
 
 Собирает `rest`-приложение, добавляет:
 
 - `/admin` — WebSocket-канал для оператора
 - `/` и `/static` — HTML/JS админки
-- `QueueTransport` — транспорт, который ходит через WS
+- `/status`, `/history` — REST-ручки наблюдения за состоянием
+
+Работает поверх того же `RuntimeState`, который `rest` использует
+как транспорт.
 
 Не отвечает за:
 
 - Логику `/v1/*` (это `rest`)
 - Формат ответа (это `lib`)
 
+### server — композиционный корень
+
+Поднимает два FastAPI-приложения в одном процессе:
+
+- API на `MANUAL_GPT_HOST:MANUAL_GPT_PORT` (по умолчанию `127.0.0.1:8000`)
+- Control на `127.0.0.1:MANUAL_GPT_CONTROL_PORT` (по умолчанию `8001`,
+  хардкод loopback — никогда не открывается наружу через env)
+
+Оба приложения делят один `RuntimeState` в памяти.
+
 ## Поток данных
 
-Сценарий: клиент обращается к `web`-серверу в режиме stream.
+Сценарий: клиент обращается к `serve` в режиме stream, оператор
+отвечает через веб-админку.
 
 ```
 curl
@@ -243,19 +288,19 @@ rest/routes.py::chat          принимает HTTP, валидирует те
 lib/api/mid.py::stream_completion
   │ async for piece in source.stream(messages)
   ▼
-web/queue.py::QueueTransport.stream
+lib/runtime.py::RuntimeState.stream
   │ pending.put({messages, out})
   ▼
-web/app.py::admin             WS-хендлер вытаскивает запрос
+control/admin.py::admin_endpoint   WS-хендлер вытаскивает запрос
   │ ws.send_json({type: "request", ...})
   ▼
 браузер → admin.js → оператор печатает
   │ ws.send_json({type: "delta", content: "..."})
   ▼
-web/app.py::admin
+control/admin.py::admin_endpoint
   │ out.put("...")
   ▼
-web/queue.py::QueueTransport.stream
+lib/runtime.py::RuntimeState.stream
   │ yield "..."
   ▼
 lib/api/mid.py::stream_completion
@@ -273,12 +318,13 @@ lib/primitives/sse.py
 Эти импорты — ошибка, если появились:
 
 ```
-lib  →  cli, rest, web         (нарушает R1, R5)
-rest →  cli, web               (нарушает R5)
-cli  →  rest                   (нарушает R2)
-web  →  cli                    (нарушает R3)
-lib  →  fastapi, starlette     (нарушает R1)
-lib  →  httpx                  (нарушает R1)
+lib     →  cli, rest, control, server   (нарушает R1, R5)
+rest    →  cli, control, server         (нарушает R5)
+cli     →  control, server              (нарушает R2)
+control →  cli, server                  (нарушает R2)
+lib     →  fastapi, starlette           (нарушает R1)
+lib     →  httpx                        (нарушает R1)
+lib     →  uvicorn, websockets          (нарушает R1)
 ```
 
 В `lib` допустимы только `stdlib` и типизация. Всё остальное —
@@ -286,7 +332,7 @@ lib  →  httpx                  (нарушает R1)
 
 ## Проверка инвариантов
 
-Проект использует четыре автоматические проверки. Все запускаются
+Проект использует две автоматические проверки. Обе запускаются
 через `uv run`.
 
 ### Слои (R5) — `.importlinter`
@@ -299,21 +345,21 @@ uv run lint-imports
 
 | Контракт | Что проверяет |
 |---|---|
-| `Layered architecture (R5)` | `cli`/`web` → `rest` → `lib`, обратных стрелок нет |
+| `Layered architecture (R5)` | `server` → `cli`/`control` → `rest` → `lib`, обратных стрелок нет |
 | `lib stays framework-free (R1)` | `lib` не импортирует fastapi/starlette/httpx/uvicorn/websockets |
-| `web only touches rest (R3)` | `web` не импортирует `lib.*` напрямую (только через `rest`) |
-| `cli only touches rest (R2)` | `cli` не импортирует `lib.*` напрямую |
+| `control stays out of lib internals (R3)` | `control` не импортирует `lib.api`/`lib.primitives`/`lib.transport` напрямую |
+| `cli only touches rest (R2)` | `cli` не импортирует `lib.api`/`lib.primitives`/`lib.transport` напрямую |
 
 Контракты R2 и R3 используют `allow_indirect_imports = True` —
-они запрещают **прямые** импорты из `web`/`cli` в `lib`, но
-разрешают транзитивные (когда `rest` внутри себя импортирует `lib`).
+они запрещают **прямые** импорты из `control`/`cli` в `lib`, но
+разрешают транзитивные (через `rest`).
 
 Ожидаемый вывод при чистом проекте:
 
 ```
 Layered architecture (R5)                    KEPT
 lib stays framework-free (R1)                KEPT
-web only touches rest (R3)                   KEPT
+control stays out of lib internals (R3)      KEPT
 cli only touches rest (R2)                   KEPT
 
 Contracts: 4 kept, 0 broken.
@@ -332,10 +378,10 @@ uv run pytest
 
 | Файл | Что проверяет |
 |---|---|
-| `test_lib.py` | формат чанков, SSE-фреймы, `mid.stream_completion`, `created` фиксирован |
-| `test_rest.py` | `/v1/models`, `/v1/chat/completions` (full + stream) |
-| `test_queue.py` | `QueueTransport.stream`, ленивая инициализация `_pending` |
-| `test_web_admin.py` | `/admin` принимает WS-подключение |
+| `test_lib.py` | формат чанков, SSE-фреймы, `mid.stream_completion`, `created` фиксирован, legacy completions |
+| `test_rest.py` | `/v1/models`, `/v1/chat/completions` (full + stream), `/v1/completions` (full + stream) |
+| `test_queue.py` | `RuntimeState.stream`, ленивая инициализация `_pending`, `status()`, `history()` |
+| `test_web_admin.py` | `control` принимает WS-подключение на `/admin`, `/status` отвечает |
 
 `conftest.py` определяет `FakeTransport` и фикстуры `app`/`client`,
 чтобы тесты не зависели от `input()` и реального WebSocket.
@@ -349,27 +395,43 @@ uv run pytest
 3. `uv run lint-imports` — все контракты KEPT.
 4. `git commit`.
 
+### Запуск
+
+```cmd
+uv run manual-gpt-server-serve
+```
+
+Поднимает API на `:8000` и control на `:8001`. Открой
+`http://127.0.0.1:8001/` — это админка.
+
+Для терминального режима (без веб-админки):
+
+```cmd
+uv run manual-gpt-server
+```
+
 ### Дампы для обсуждения
 
-Когда нужно показать состояние проекта (например, для код-ревью,
-или отладки с кем-то):
+Когда нужно показать состояние проекта (код-ревью, отладка):
 
 ```cmd
-uv run python scripts\dump_tree.py
+uv run scripts/dump_tree.py
 ```
 
-Получишь `scripts/state_tree.txt` — структуру + pyproject + git
-status. Компактно.
+→ `scripts/state_tree.txt`: дерево с размерами, все конфиги проекта,
+git status.
 
 ```cmd
-uv run python scripts\dump_full.py lib
+uv run scripts/dump_full.py                     # разумный набор по умолчанию
+uv run scripts/dump_full.py src/manual_gpt_server/lib
+uv run scripts/dump_full.py tests scripts
+uv run scripts/dump_full.py pyproject.toml .importlinter
 ```
 
-Получишь `scripts/state_dump.txt` — исходники слоя `lib`.
-Аргумент — любой из `lib`, `cli`, `rest`, `web`, или без аргумента
-для всего `src/manual_gpt_server`.
+→ `scripts/state_dump.txt`: только указанные пути, только текстовые
+файлы.
 
-Оба файла начинаются с `state_` и исключены из `.gitignore`.
+Оба выходных файла начинаются с `state_` и исключены из `.gitignore`.
 
 ### Миграции
 
@@ -385,30 +447,62 @@ uv run python scripts\dump_full.py lib
 - **v2** — разделили `cli` и `web` как равноправные entry points,
   оба собирают `server.py`. Появились `rest/`, но `lib` всё ещё
   содержал `terminal.py` и `queue.py` — UI-код протекал в ядро.
-- **v3 (текущая)** — вариант C: `api/` и `primitives/` переехали
-  внутрь `lib`, транспорты переехали к своим потребителям
-  (`cli/terminal.py`, `web/queue.py`). `lib` стал чистым ядром.
+- **v3** — `api/` и `primitives/` переехали внутрь `lib`, транспорты
+  переехали к своим потребителям (`cli/terminal.py`, `web/queue.py`).
+  `lib` стал чистым ядром.
 - **v3.1** — служебные скрипты переписаны с `.bat` на Python,
   переехали в `scripts/`. Добавлены `tests/`, `.importlinter`,
   `pytest.ini`. `created` в SSE-чанках зафиксирован на весь ответ.
+- **v3.2 (текущая)** — `web/` расформирован. Появились `control/`
+  (веб-админка) и `server/` (композиционный корень с двумя
+  FastAPI-приложениями на двух портах). `QueueTransport` заменён на
+  `lib/runtime.RuntimeState` — общий стейт процесса, используется и
+  как транспорт для `rest`, и как источник данных для control REST-ручек.
+  Добавлен `/v1/completions` (legacy API) для Continue в Edit mode.
 
 ## Что дальше
 
 Не сделано, но планируется:
 
-- **UI админки** — счётчик очереди (видно, сколько запросов
-  ждёт), история ответов (не пропадает после Send), индикатор
-  прогресса стрима.
-- **Multi-model** — несколько `model_id`, маршрутизация в
-  `rest/routes.py`. Сейчас `/v1/models` всегда возвращает один
-  элемент, `model` в запросе игнорируется.
-- **Auth** — `MANUAL_GPT_API_KEY` реально проверяется на
-  `/v1/*` и `/admin`. Сейчас ключ читается в `Settings`, но
-  нигде не валидируется.
-- **Ruff** — линтер кода (`ruff check`, `ruff format`).
-  Добавить в dev-зависимости и прогнать первый раз.
-- **`.gitignore`** — расширить: `.import_linter_cache/`,
+### Разделение `serve` и операторов
+
+Сейчас `server/main.py` поднимает **два приложения в одном процессе**:
+API и control. По факту control — это админка, а `serve` — не должно
+быть админкой. Планируется:
+
+- `serve` — только API на `:8000`. Ни статики, ни `/admin`.
+- `web` — отдельное приложение с админкой (HTML + JS + WS + REST).
+- `cli` — терминальный оператор без порта.
+- **Вариант 1 с задел на 2:** всё в одном процессе с флагами
+  `--with-cli`, `--with-web`. Задел — на разнесение по процессам
+  через IPC (named pipe / Unix socket), когда появится потребность
+  в «оператор на другой машине».
+
+### UI админки
+
+Счётчик очереди (видно, сколько запросов ждёт), история ответов
+(не пропадает после Send), индикатор прогресса стрима, сворачивание
+длинных системных промптов (Continue в agent mode шлёт стены текста).
+
+### Multi-model
+
+Несколько `model_id`, маршрутизация в `rest/routes.py`. Сейчас
+`/v1/models` всегда возвращает один элемент, `model` в запросе
+игнорируется.
+
+### Auth
+
+`MANUAL_GPT_API_KEY` реально проверяется на `/v1/*` и `/admin`.
+Сейчас ключ читается в `Settings`, но нигде не валидируется.
+
+### Ruff
+
+Линтер кода (`ruff check`, `ruff format`). Добавить в
+dev-зависимости и прогнать первый раз.
+
+### Мелочи
+
+- `.gitignore` — расширить: `.import_linter_cache/`,
   `scripts/__pycache__/`, `scripts/state_*.txt`.
-- **Мелочи** — убрать `jinja2` из `pyproject.toml`, обновить
-  `description`, поправить PEP 8 в `lib/primitives/ids.py`
-  (пустая строка после `import uuid`).
+- `pyproject.toml` — обновить `description`.
+- `lib/primitives/ids.py` — PEP 8: пустая строка после `import uuid`.
