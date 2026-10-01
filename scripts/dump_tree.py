@@ -4,7 +4,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from _common import find_project_root, iter_files
+from _common import find_project_root, iter_all
 
 
 def main() -> int:
@@ -14,19 +14,25 @@ def main() -> int:
     print(f"Корень проекта: {root}")
     print(f"Куда пишу:      {out}")
 
-    files = iter_files(root, extra_exclude_dirs={"scripts"})
+    files = iter_all(root)
 
     lines = ["=== TREE ==="]
+    lines.append(f"{'size':>10}  path")
+    lines.append("-" * 70)
     for f in files:
-        lines.append(str(f.relative_to(root)))
-
+        rel = f.relative_to(root)
+        lines.append(f"{f.stat().st_size:>10}  {rel}")
     lines.append("")
-    lines.append("=== pyproject.toml ===")
-    pyproject = root / "pyproject.toml"
-    if pyproject.exists():
-        lines.append(pyproject.read_text(encoding="utf-8"))
-    else:
-        lines.append("(not found)")
+    lines.append(f"Всего файлов: {len(files)}")
+
+    # Конфиги проекта — маленькие, полезно видеть их целиком
+    for name in ("pyproject.toml", ".gitignore", ".importlinter", "pytest.ini", "README.md"):
+        p = root / name
+        if not p.exists():
+            continue
+        lines.append("")
+        lines.append(f"=== {name} ===")
+        lines.append(p.read_text(encoding="utf-8"))
 
     lines.append("")
     lines.append("=== GIT ===")

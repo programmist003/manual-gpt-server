@@ -3,12 +3,27 @@ from __future__ import annotations
 from pathlib import Path
 
 EXCLUDE_DIRS = {
-    ".venv", ".git", "__pycache__", ".ruff_cache",
-    ".mypy_cache", ".pytest_cache", "dist", "build",
+    ".venv", ".git", "__pycache__", ".ruff_cache", ".mypy_cache",
+    ".pytest_cache", ".import_linter_cache", "dist", "build",
     ".idea", ".vscode",
 }
 
-EXCLUDE_SUFFIXES = {".pyc", ".bak"}
+# Расширения, которые считаем текстовыми
+TEXT_SUFFIXES = {
+    ".py", ".pyi",
+    ".toml", ".yaml", ".yml", ".json", ".ini", ".cfg",
+    ".md", ".rst", ".txt",
+    ".html", ".css", ".js", ".ts", ".tsx",
+    ".sh", ".bat", ".ps1",
+    ".env",
+}
+
+# Отдельные файлы без расширения или с нестандартным
+TEXT_NAMES = {
+    ".gitignore", ".gitattributes", ".python-version",
+    ".importlinter", ".editorconfig",
+    "Makefile", "Dockerfile", "pytest.ini",
+}
 
 
 def find_project_root(start: Path | None = None) -> Path:
@@ -20,7 +35,7 @@ def find_project_root(start: Path | None = None) -> Path:
     raise RuntimeError(f"pyproject.toml not found above {here}")
 
 
-def iter_files(root: Path, extra_exclude_dirs: set[str] = frozenset()) -> list[Path]:
+def iter_all(root: Path, extra_exclude_dirs: set[str] = frozenset()) -> list[Path]:
     """Все файлы под root, кроме мусорных папок и расширений.
 
     Родительские компоненты пути (parts[:-1]) проверяются на вхождение
@@ -34,9 +49,12 @@ def iter_files(root: Path, extra_exclude_dirs: set[str] = frozenset()) -> list[P
         parts = p.relative_to(root).parts
         if any(part in excluded for part in parts[:-1]):
             continue
-        if p.suffix in EXCLUDE_SUFFIXES:
-            continue
-        if p.name.startswith("state_") and p.suffix == ".txt":
-            continue
         result.append(p)
     return sorted(result)
+
+
+def is_text(p: Path) -> bool:
+    """Текстовый ли файл. state_*.txt исключаем — это наши же дампы."""
+    if p.name.startswith("state_"):
+        return False
+    return p.suffix in TEXT_SUFFIXES or p.name in TEXT_NAMES
